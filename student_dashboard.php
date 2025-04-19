@@ -18,6 +18,9 @@ $sql = "SELECT election_name, start_datetime, end_datetime
         ORDER BY created_at DESC 
         LIMIT 1";
 $result = $conn->query($sql);
+if ($result === false) {
+    die("Error fetching elections: " . $conn->error);
+}
 if ($result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
         $elections[] = $row;
@@ -30,13 +33,47 @@ $sql = "SELECT name, seat, picture
         FROM candidates 
         WHERE status = 'approved'";
 $result = $conn->query($sql);
+if ($result === false) {
+    die("Error fetching candidates: " . $conn->error);
+}
 if ($result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
         $candidates[] = $row;
     }
 }
 
+// Fetch vote counts
+$vote_counts = [];
+$sql = "SELECT name, seat, COUNT(*) as vote_count 
+        FROM candidates 
+        GROUP BY name, seat";
+/* Alternative query if votes table uses candidate_id:
+$sql = "SELECT c.name as candidate, c.seat, COUNT(*) as vote_count 
+        FROM votes v 
+        JOIN candidates c ON v.candidate_id = c.id 
+        GROUP BY c.name, c.seat";
+*/
+$result = $conn->query($sql);
+if ($result === false) {
+    die("Error fetching vote counts: " . $conn->error);
+}
+if ($result->num_rows > 0) {
+    while ($row = $result->fetch_assoc()) {
+        $vote_counts[$row['seat']][$row['name']] = $row['vote_count'];
+    }
+}
+
 $conn->close();
+
+// Group candidates by seat for voting section
+$candidates_by_seat = [];
+foreach ($candidates as $candidate) {
+    $seat = $candidate['seat'];
+    if (!isset($candidates_by_seat[$seat])) {
+        $candidates_by_seat[$seat] = [];
+    }
+    $candidates_by_seat[$seat][] = $candidate;
+}
 ?>
 
 <!DOCTYPE html>
@@ -46,7 +83,6 @@ $conn->close();
   <title>Student Dashboard - MMUSTVote</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <style>
-    /* Reset and Base Styles */
     * {
       margin: 0;
       padding: 0;
@@ -59,7 +95,6 @@ $conn->close();
       color: #333;
     }
     
-    /* Top Bar Styles */
     .top-bar {
       background-color: #004080;
       color: white;
@@ -115,7 +150,6 @@ $conn->close();
       opacity: 0.8;
     }
     
-    /* Sidebar Styles */
     .sidebar {
       background-color: #004080;
       color: white;
@@ -169,14 +203,12 @@ $conn->close();
       width: 100%;
     }
     
-    /* Main Content Styles */
     .main-content {
       margin-left: 250px;
       padding: 90px 25px 25px;
       min-height: 100vh;
     }
     
-    /* Section Styles */
     .section-content {
       background-color: white;
       border-radius: 8px;
@@ -194,7 +226,6 @@ $conn->close();
       gap: 10px;
     }
     
-    /* Election List Styles */
     .election-list ul {
       list-style-type: none;
       padding-left: 0;
@@ -206,7 +237,6 @@ $conn->close();
       color: #333;
     }
     
-    /* Candidate Container Styles */
     .candidate-container {
       display: flex;
       flex-wrap: wrap;
@@ -242,7 +272,6 @@ $conn->close();
       font-size: 0.9rem;
     }
     
-    /* Vote Section Styles */
     .vote-candidate {
       display: flex;
       align-items: center;
@@ -258,7 +287,7 @@ $conn->close();
       object-fit: cover;
     }
     
-    .vote-candidate input[type="checkbox"] {
+    .vote-candidate input[type="radio"] {
       transform: scale(1.2);
     }
     
@@ -291,7 +320,18 @@ $conn->close();
       border-radius: 4px;
     }
     
-    /* Result Card Styles */
+    .seat-group {
+      margin-bottom: 20px;
+    }
+    
+    .seat-group h3 {
+      color: #004080;
+      font-size: 1.3rem;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #004080;
+      padding-bottom: 5px;
+    }
+    
     .result-card {
       background-color: white;
       padding: 20px;
@@ -311,7 +351,6 @@ $conn->close();
       font-size: 0.9rem;
     }
     
-    /* News Card Styles */
     .news-card {
       background-color: white;
       padding: 20px;
@@ -353,7 +392,15 @@ $conn->close();
       background-color: #002b5c;
     }
     
-    /* Responsive Adjustments */
+    .voting-status {
+      color: #a94442;
+      font-size: 1rem;
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 4px;
+      background-color: #f2dede;
+    }
+    
     @media (max-width: 768px) {
       .sidebar {
         width: 70px;
@@ -386,7 +433,6 @@ $conn->close();
 </head>
 <body>
 
-  <!-- Top Bar -->
   <div class="top-bar">
     <div class="logo-container">
       <img src="mmust-logo.jpg" alt="MMUST Logo" class="logo">
@@ -404,7 +450,6 @@ $conn->close();
     </div>
   </div>
 
-  <!-- Sidebar -->
   <nav class="sidebar">
     <ul>
       <li>
@@ -439,15 +484,13 @@ $conn->close();
       </li>
     </ul>
     <div class="sidebar-contact">
-      <p>Contact: 0712345678</p>
+      <p>Contact: 0112581756</p>
       <p><a href="mailto:mmustvote@mmust.ac.ke">mmustvote@mmust.ac.ke</a></p>
-      <p>Tel: +254 712 345678</p>
+      
     </div>
   </nav>
 
-  <!-- Main Content -->
   <main class="main-content">
-    <!-- Home Section -->
     <section id="home-content" class="section-content">
       <h2 class="section-header">
         <i class="fas fa-calendar-alt"></i>
@@ -493,7 +536,6 @@ $conn->close();
       </div>
     </section>
 
-    <!-- Candidates Section -->
     <section id="candidates-content" class="section-content" style="display: none;">
       <h2 class="section-header">
         <i class="fas fa-users"></i>
@@ -514,7 +556,6 @@ $conn->close();
       </div>
     </section>
 
-    <!-- Vote Section -->
     <section id="vote-content" class="section-content" style="display: none;">
       <h2 class="section-header">
         <i class="fas fa-vote-yea"></i>
@@ -522,19 +563,26 @@ $conn->close();
       </h2>
       <form id="vote-form">
         <div id="vote-candidates">
-          <?php if (empty($candidates)): ?>
+          <?php if (empty($candidates_by_seat)): ?>
             <p>No approved candidates available for voting.</p>
           <?php else: ?>
-            <?php foreach ($candidates as $index => $candidate): ?>
-              <div class="vote-candidate">
-                <input type="checkbox" id="vote-<?php echo $index; ?>" name="vote[]" value="<?php echo htmlspecialchars($candidate['name']); ?>">
-                <label for="vote-<?php echo $index; ?>">
-                  <img src="<?php echo $candidate['picture'] ? htmlspecialchars($candidate['picture']) : 'default-avatar.png'; ?>" alt="<?php echo htmlspecialchars($candidate['name']); ?>">
-                  <div>
-                    <h3><?php echo htmlspecialchars($candidate['name']); ?></h3>
-                    <p><?php echo htmlspecialchars($candidate['seat']); ?></p>
+            <?php $index = 0; ?>
+            <?php foreach ($candidates_by_seat as $seat => $seat_candidates): ?>
+              <div class="seat-group">
+                <h3><?php echo htmlspecialchars($seat); ?></h3>
+                <?php foreach ($seat_candidates as $candidate): ?>
+                  <div class="vote-candidate">
+                    <input type="radio" id="vote-<?php echo $index; ?>" name="vote[<?php echo htmlspecialchars($seat); ?>]" value="<?php echo htmlspecialchars($candidate['name']); ?>">
+                    <label for="vote-<?php echo $index; ?>">
+                      <img src="<?php echo $candidate['picture'] ? htmlspecialchars($candidate['picture']) : 'default-avatar.png'; ?>" alt="<?php echo htmlspecialchars($candidate['name']); ?>">
+                      <div>
+                        <h3><?php echo htmlspecialchars($candidate['name']); ?></h3>
+                        <p><?php echo htmlspecialchars($candidate['seat']); ?></p>
+                      </div>
+                    </label>
                   </div>
-                </label>
+                  <?php $index++; ?>
+                <?php endforeach; ?>
               </div>
             <?php endforeach; ?>
           <?php endif; ?>
@@ -544,18 +592,16 @@ $conn->close();
       <p class="error-message" id="error-message"></p>
     </section>
 
-    <!-- Results Section -->
     <section id="results-content" class="section-content" style="display: none;">
       <h2 class="section-header">
         <i class="fas fa-poll"></i>
-        Your Voting Results
+        Election Results
       </h2>
       <div id="result-list">
         <p>Please vote to see results.</p>
       </div>
     </section>
 
-    <!-- News Section -->
     <section id="news-content" class="section-content" style="display: none;">
       <h2 class="section-header">
         <i class="fas fa-newspaper"></i>
@@ -569,11 +615,10 @@ $conn->close();
   </main>
 
   <script>
-    // Pass PHP data to JavaScript
     const elections = <?php echo json_encode($elections); ?>;
     const candidates = <?php echo json_encode($candidates); ?>;
+    const voteCounts = <?php echo json_encode($vote_counts); ?>;
 
-    // News topics and content for random generation
     const newsTopics = [
       "Election Updates", "Campaign News", "Candidate Profiles", 
       "Debate Highlights", "Voter Information", "Election Rules",
@@ -620,8 +665,9 @@ $conn->close();
 
     function submitVote() {
       const selectedCandidates = [];
-      document.querySelectorAll('input[name="vote[]"]:checked').forEach(input => {
-        selectedCandidates.push(input.value);
+      document.querySelectorAll('input[name^="vote["]:checked').forEach(input => {
+        const seat = input.name.match(/vote\[(.+)\]/)[1];
+        selectedCandidates.push({ name: input.value, seat: seat });
       });
 
       const errorMessage = document.getElementById("error-message");
@@ -649,37 +695,58 @@ $conn->close();
         return;
       }
 
-      alert(`You have successfully voted for: ${selectedCandidates.join(", ")} in ${activeElection.election_name}`);
+      alert(`You have successfully voted in ${activeElection.election_name}`);
       errorMessage.textContent = "";
       showSection('results-content');
       displayResults(selectedCandidates);
     }
 
-    function displayResults(selectedCandidateNames) {
+    function displayResults(selectedCandidates) {
       const resultList = document.getElementById("result-list");
       resultList.innerHTML = "";
 
-      selectedCandidateNames.forEach(name => {
-        const candidate = candidates.find(c => c.name === name);
-        if (candidate) {
-          // Randomly generate votes and position for demo purposes
-          const votes = Math.floor(Math.random() * 10001);
-          const position = Math.floor(Math.random() * 5) + 1;
-          const winStatus = position === 1 ? "Won" : "Lost";
+      if (selectedCandidates.length === 0) {
+        resultList.innerHTML = "<p>No candidates selected.</p>";
+        return;
+      }
 
-          const resultCard = document.createElement("div");
-          resultCard.classList.add("result-card");
-          resultCard.innerHTML = `
-            <h3>${candidate.name} (${candidate.seat})</h3>
-            <p>Votes: ${votes}</p>
-            <p>Position: ${position} - ${winStatus}</p>
-          `;
-          resultList.appendChild(resultCard);
+      const currentDate = new Date();
+      let votingEnded = true;
+      for (const election of elections) {
+        const endDate = new Date(election.end_datetime);
+        if (currentDate <= endDate) {
+          votingEnded = false;
+          break;
         }
+      }
+
+      // Calculate total votes per seat
+      const totalVotesBySeat = {};
+      for (const seat in voteCounts) {
+        totalVotesBySeat[seat] = Object.values(voteCounts[seat]).reduce((sum, count) => sum + count, 0);
+      }
+
+      selectedCandidates.forEach(candidate => {
+        const resultCard = document.createElement("div");
+        resultCard.classList.add("result-card");
+        
+        const votes = voteCounts[candidate.seat]?.[candidate.name] || 0;
+        const totalVotes = totalVotesBySeat[candidate.seat] || 1; // Avoid division by zero
+        const percentage = ((votes / totalVotes) * 100).toFixed(2);
+
+        resultCard.innerHTML = `
+          <h3>Your Vote: ${candidate.name} (${candidate.seat})</h3>
+          <p>Current Votes: ${votes}</p>
+          <p>Percentage of Votes: ${percentage}%</p>
+        `;
+        resultList.appendChild(resultCard);
       });
 
-      if (selectedCandidateNames.length === 0) {
-        resultList.innerHTML = "<p>No candidates selected.</p>";
+      if (!votingEnded) {
+        const statusMessage = document.createElement("p");
+        statusMessage.classList.add("voting-status");
+        statusMessage.textContent = "Results are still coming in. Please check back after voting ends.";
+        resultList.appendChild(statusMessage);
       }
     }
 
@@ -718,7 +785,6 @@ $conn->close();
       }
     }
 
-    // Initialize default view
     document.addEventListener('DOMContentLoaded', function() {
       showSection('home-content');
     });

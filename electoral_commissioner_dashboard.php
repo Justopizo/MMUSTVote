@@ -400,6 +400,25 @@ foreach ($results as $result) {
             background-color: #002b5c;
         }
 
+        .print-btn {
+            background-color: #2e7d32;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            transition: background-color 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .print-btn:hover {
+            background-color: #1b5e20;
+        }
+
         .message {
             padding: 12px;
             border-radius: 5px;
@@ -519,6 +538,23 @@ foreach ($results as $result) {
 
         .no-js-fallback.active {
             display: block;
+        }
+
+        @media print {
+            .top-bar, .sidebar, .print-btn, .no-js-fallback {
+                display: none;
+            }
+            .main-content {
+                margin……
+
+            }
+            .admin-section {
+                box-shadow: none;
+                padding: 0;
+            }
+            body {
+                background: white;
+            }
         }
 
         @media (max-width: 768px) {
@@ -677,6 +713,9 @@ foreach ($results as $result) {
         <!-- Election Results -->
         <section id="results" class="admin-section">
             <h2><i class="fas fa-poll"></i> Election Results</h2>
+            <button class="print-btn" onclick="printResults()">
+                <i class="fas fa-print"></i> Print Results
+            </button>
             <?php foreach ($results_by_seat as $seat => $seat_results): ?>
                 <div class="seat-section">
                     <h3><?php echo htmlspecialchars($seat); ?></h3>
@@ -765,7 +804,7 @@ foreach ($results as $result) {
             sidebarLinks.forEach(link => {
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
-                    e.stopPropagation(); // Prevent any parent elements from intercepting the event
+                    e.stopPropagation();
                     const sectionId = link.getAttribute('data-section');
                     console.log(`Clicked link for section: ${sectionId}`);
                     showSection(sectionId, link);
@@ -814,6 +853,34 @@ foreach ($results as $result) {
                 console.error('Error initializing chart:', error);
             }
         });
+
+        // Print results function
+        function printResults() {
+            // Store the current scroll position
+            const scrollY = window.scrollY;
+            
+            // Show only the results section for printing
+            const sections = document.querySelectorAll('.admin-section');
+            sections.forEach(section => {
+                if (section.id !== 'results') {
+                    section.style.display = 'none';
+                }
+            });
+
+            // Print the page
+            window.print();
+
+            // Restore the view
+            sections.forEach(section => {
+                section.style.display = section.id === 'results' ? 'block' : 'none';
+                if (section.classList.contains('active')) {
+                    section.style.display = 'block';
+                }
+            });
+
+            // Restore scroll position
+            window.scrollTo(0, scrollY);
+        }
     </script>
 </body>
 </html>
